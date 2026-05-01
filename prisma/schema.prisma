@@ -1,0 +1,685 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  mobilePhone   String?
+  companyName   String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  roles         UserRole[]
+  requirements  Requirement[]  @relation("RequirementOwner")
+  prs           PR[]           @relation("PROwner")
+  comments      Comment[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  attachments   Attachment[]
+  requirementDrafts RequirementDraft[]
+
+  @@index([email])
+  @@index([isActive])
+}
+
+model Role {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model Vendor {
+  id             String           @id @default(cuid())
+  company        String
+  vendorName     String
+  phone          String
+  email          String
+  vendorCodes    String
+  status         String           @default("Unapproved")
+  gstNumber      String?
+  panNumber      String?
+  category       String?
+  bankName       String?
+  accountNumber  String?
+  ifscCode       String?
+  riskScore      Int              @default(42)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  contacts       VendorContact[]
+  documents      VendorDocument[]
+  quotations     Quotation[]
+  pos            PO[]
+  contracts      Contract[]
+  catalogueItems CatalogueItem[]
+  categories     VendorCategory[]
+  requirementLinks RequirementVendor[]
+  asns           ASN[]
+  invoices       Invoice[]
+
+  @@index([status])
+  @@index([company])
+  @@index([email])
+  @@index([category])
+}
+
+model VendorCategory {
+  id        String @id @default(cuid())
+  vendorId  String
+  category  String
+  country   String @default("India")
+  rating    Float  @default(4.1)
+  responseRate Float @default(82)
+  onTimeDelivery Float @default(88)
+  priceCompetitiveness Float @default(76)
+  qualityScore Float @default(84)
+  complianceValidUntil DateTime?
+  vendor    Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([country])
+  @@index([vendorId, category])
+}
+
+model VendorContact {
+  id        String   @id @default(cuid())
+  vendorId  String
+  name      String
+  email     String
+  phone     String
+  title     String?
+  isPrimary Boolean  @default(false)
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+}
+
+model VendorDocument {
+  id          String   @id @default(cuid())
+  vendorId    String
+  type        String
+  fileName    String
+  status      String   @default("Pending")
+  uploadedAt  DateTime @default(now())
+  reviewedAt  DateTime?
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, status])
+}
+
+model Requirement {
+  id              String    @id @default(cuid())
+  rfqNumber       String    @unique
+  rfqType         String
+  title           String
+  postedById      String
+  postedOn        DateTime
+  freezeTime      DateTime
+  negotiationTime DateTime?
+  status          String
+  department      String?
+  urgency         String?
+  description     String?
+  internalNotes   String?
+  deliveryTerms   String?
+  paymentTerms    String?
+  incoterms       String?
+  contactDetails  String?
+  transactionConfig String?
+  projectName     String?
+  clientName      String?
+  prNumber        String?
+  qcsCode         String?
+  quotationStatus String
+  quotationCount  Int       @default(0)
+  invitedVendors  Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  postedBy        User      @relation("RequirementOwner", fields: [postedById], references: [id])
+  rfqs            RFQ[]
+  rfps            RFP[]
+  items           RequirementItem[]
+  templateQuestions RequirementTemplateQuestion[]
+  drafts          RequirementDraft[]
+  vendors         RequirementVendor[]
+  attachments     Attachment[]
+  comments        Comment[]
+
+  @@index([status])
+  @@index([postedById])
+  @@index([postedOn])
+  @@index([rfqNumber])
+  @@index([projectName])
+  @@index([department])
+  @@index([urgency])
+}
+
+model RequirementItem {
+  id              String      @id @default(cuid())
+  requirementId   String
+  itemNo          Int
+  productCode     String
+  productName     String
+  mpnNumber       String?
+  quantity        Float
+  uom             String
+  makeModel       String?
+  hsnCode         String?
+  deliveryAddress String?
+  description     String?
+  freightCharges  Float @default(0)
+  insuranceCharges Float @default(0)
+  remarks         String?
+  attachmentName  String?
+  requirement     Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@index([requirementId])
+  @@index([productCode])
+}
+
+model RequirementTemplateQuestion {
+  id                  String      @id @default(cuid())
+  requirementId        String
+  name                String
+  description         String?
+  specification       String?
+  isTechnical         Boolean     @default(false)
+  isMandatory         Boolean     @default(false)
+  vendorResponseType  String      @default("Text")
+  weightage           Int         @default(0)
+  requirement         Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@index([requirementId])
+  @@index([isTechnical])
+}
+
+model RequirementDraft {
+  id             String   @id @default(cuid())
+  ownerId        String
+  requirementId  String?
+  draftKey       String
+  payload        String
+  currentStep    Int      @default(1)
+  status         String   @default("Draft")
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  owner          User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  requirement    Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+
+  @@unique([ownerId, draftKey])
+  @@index([status])
+}
+
+model RequirementVendor {
+  id             String      @id @default(cuid())
+  requirementId  String
+  vendorId       String
+  status         String      @default("Invited")
+  categoryMatch  Float       @default(80)
+  score          Float       @default(75)
+  warnings       String?
+  invitedAt      DateTime?
+  requirement    Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  vendor         Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([requirementId, vendorId])
+  @@index([status])
+  @@index([vendorId])
+}
+
+model PR {
+  id            String    @id @default(cuid())
+  prNumber      String    @unique
+  title         String
+  department    String
+  budget        Float
+  item          String
+  quantity      Int
+  urgency       String
+  requiredDate  DateTime
+  approvalStatus String   @default("Draft")
+  ownerId       String
+  convertedRfqId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  owner         User      @relation("PROwner", fields: [ownerId], references: [id])
+  rfqs          RFQ[]
+
+  @@index([approvalStatus])
+  @@index([department])
+  @@index([requiredDate])
+}
+
+model RFQ {
+  id                String        @id @default(cuid())
+  rfqNumber         String        @unique
+  requirementId     String?
+  prId              String?
+  title             String
+  status            String        @default("Draft")
+  quotationDeadline DateTime
+  freezeTime        DateTime
+  negotiationTime   DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  requirement       Requirement?  @relation(fields: [requirementId], references: [id])
+  pr                PR?           @relation(fields: [prId], references: [id])
+  lineItems         RFQLineItem[]
+  quotations        Quotation[]
+  qcs               QCS[]
+
+  @@index([status])
+  @@index([quotationDeadline])
+}
+
+model RFP {
+  id                String        @id @default(cuid())
+  rfpNumber         String        @unique
+  requirementId     String?
+  title             String
+  status            String        @default("Draft")
+  proposalDeadline  DateTime
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  requirement       Requirement?  @relation(fields: [requirementId], references: [id])
+
+  @@index([status])
+  @@index([proposalDeadline])
+}
+
+model RFQLineItem {
+  id          String @id @default(cuid())
+  rfqId       String
+  itemCode    String
+  description String
+  quantity    Int
+  uom         String
+  targetPrice Float?
+  rfq         RFQ    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@index([rfqId])
+}
+
+model Quotation {
+  id        String              @id @default(cuid())
+  rfqId     String
+  vendorId  String
+  status    String              @default("Submitted")
+  total     Float
+  submittedAt DateTime          @default(now())
+  rfq       RFQ                 @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor    Vendor              @relation(fields: [vendorId], references: [id])
+  lineItems QuotationLineItem[]
+
+  @@index([rfqId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+model QuotationLineItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  description String
+  quantity    Int
+  unitPrice   Float
+  taxRate     Float
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+}
+
+model QCS {
+  id              String        @id @default(cuid())
+  qcsCode         String        @unique
+  rfqId           String
+  status          String        @default("QCS Pending")
+  technicalScore  Int
+  commercialScore Int
+  recommendedVendor String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  rfq             RFQ           @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  approvals       QCSApproval[]
+  comparisons     QCSComparison[]
+
+  @@index([status])
+  @@index([rfqId])
+}
+
+model QCSComparison {
+  id              String @id @default(cuid())
+  qcsId           String
+  vendorName      String
+  technicalScore  Int
+  commercialScore Int
+  rank            Int
+  remarks         String?
+  qcs             QCS @relation(fields: [qcsId], references: [id], onDelete: Cascade)
+
+  @@index([qcsId])
+  @@index([rank])
+}
+
+model QCSApproval {
+  id         String   @id @default(cuid())
+  qcsId      String
+  approver   String
+  role       String
+  status     String   @default("Pending")
+  comments   String?
+  decidedAt  DateTime?
+  qcs        QCS      @relation(fields: [qcsId], references: [id], onDelete: Cascade)
+
+  @@index([qcsId, status])
+}
+
+model PO {
+  id             String   @id @default(cuid())
+  poNumber       String   @unique
+  vendorId       String
+  prNumber       String?
+  title          String
+  totalAmount    Float
+  status         String   @default("Draft")
+  approvalStatus String   @default("Pending")
+  acknowledgedAt DateTime?
+  deliveryDate   DateTime?
+  department     String?
+  contractId     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  vendor         Vendor   @relation(fields: [vendorId], references: [id])
+  lineItems      POLineItem[]
+  grns           GRN[]
+  asns           ASN[]
+  invoices       Invoice[]
+  payments       Payment[]
+  matches        ThreeWayMatch[]
+  contract       Contract? @relation(fields: [contractId], references: [id])
+
+  @@index([status])
+  @@index([approvalStatus])
+  @@index([vendorId])
+}
+
+model POLineItem {
+  id          String @id @default(cuid())
+  poId        String
+  itemCode    String
+  description String
+  quantity    Float
+  uom         String
+  unitPrice   Float
+  po          PO @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  @@index([poId])
+}
+
+model GRN {
+  id            String @id @default(cuid())
+  grnNumber     String @unique
+  poId          String
+  status        String @default("Open")
+  receivedDate  DateTime @default(now())
+  quantityReceived Float @default(0)
+  quantityRejected Float @default(0)
+  remarks       String?
+  po            PO @relation(fields: [poId], references: [id], onDelete: Cascade)
+  lineItems     GRNLineItem[]
+  matches       ThreeWayMatch[]
+
+  @@index([poId])
+  @@index([status])
+}
+
+model GRNLineItem {
+  id              String @id @default(cuid())
+  grnId           String
+  itemCode        String
+  quantityReceived Float
+  quantityRejected Float @default(0)
+  remarks         String?
+  grn             GRN @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  @@index([grnId])
+}
+
+model ASN {
+  id           String @id @default(cuid())
+  asnNumber    String @unique
+  poId         String
+  vendorId     String
+  status       String @default("Pending ASN")
+  deliveryDate DateTime
+  trackingRef  String?
+  shipmentNote String?
+  po           PO @relation(fields: [poId], references: [id], onDelete: Cascade)
+  vendor       Vendor @relation(fields: [vendorId], references: [id])
+
+  @@index([status])
+  @@index([poId])
+  @@index([vendorId])
+}
+
+model Invoice {
+  id            String @id @default(cuid())
+  invoiceNumber String @unique
+  poId          String
+  vendorId      String
+  grnId         String?
+  status        String @default("Submitted")
+  amount        Float
+  submittedAt   DateTime @default(now())
+  dueDate       DateTime
+  fileName      String?
+  po            PO @relation(fields: [poId], references: [id], onDelete: Cascade)
+  vendor        Vendor @relation(fields: [vendorId], references: [id])
+  payments      Payment[]
+  matches       ThreeWayMatch[]
+
+  @@index([status])
+  @@index([poId])
+  @@index([vendorId])
+  @@index([dueDate])
+}
+
+model Payment {
+  id              String @id @default(cuid())
+  paymentNumber   String @unique
+  poId            String
+  invoiceId       String?
+  status          String @default("Pending")
+  dueDate         DateTime
+  paidAmount      Float @default(0)
+  pendingAmount   Float
+  paymentReference String?
+  updatedAt       DateTime @updatedAt
+  po              PO @relation(fields: [poId], references: [id], onDelete: Cascade)
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model ThreeWayMatch {
+  id          String @id @default(cuid())
+  poId        String
+  grnId       String?
+  invoiceId   String?
+  status      String @default("Pending GRN")
+  exception   String?
+  decidedAt   DateTime?
+  po          PO @relation(fields: [poId], references: [id], onDelete: Cascade)
+  grn         GRN? @relation(fields: [grnId], references: [id], onDelete: SetNull)
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([poId])
+}
+
+model Contract {
+  id            String   @id @default(cuid())
+  contractNo    String   @unique
+  vendorId      String
+  title         String
+  fileName      String?
+  startDate     DateTime
+  expiryDate    DateTime
+  renewalStatus String   @default("Active")
+  value         Float
+  utilizedValue Float @default(0)
+  balanceValue  Float @default(0)
+  contractType  String @default("Rate Contract")
+  department    String?
+  owner         String?
+  status        String @default("Active")
+  renewalRequired Boolean @default(false)
+  terms         String?
+  vendor        Vendor   @relation(fields: [vendorId], references: [id])
+  pos           PO[]
+  amendments    ContractAmendment[]
+
+  @@index([expiryDate])
+  @@index([renewalStatus])
+  @@index([vendorId])
+}
+
+model ContractAmendment {
+  id          String @id @default(cuid())
+  contractId  String
+  version     Int
+  summary     String
+  valueChange Float @default(0)
+  status      String @default("Approved")
+  createdAt   DateTime @default(now())
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+}
+
+model CatalogueItem {
+  id           String   @id @default(cuid())
+  itemCode     String   @unique
+  name         String
+  category     String
+  uom          String
+  vendorId     String?
+  currentPrice Float
+  previousPrice Float
+  isActive     Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+  vendor       Vendor?  @relation(fields: [vendorId], references: [id])
+
+  @@index([category])
+  @@index([vendorId])
+  @@index([isActive])
+}
+
+model Department {
+  id        String @id @default(cuid())
+  name      String @unique
+  code      String @unique
+  owner     String?
+  budget    Float @default(0)
+  isActive  Boolean @default(true)
+
+  @@index([isActive])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model Comment {
+  id            String       @id @default(cuid())
+  body          String
+  entityType    String
+  entityId      String
+  requirementId String?
+  userId        String
+  createdAt     DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id])
+  requirement   Requirement? @relation(fields: [requirementId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+}
+
+model Attachment {
+  id             String @id @default(cuid())
+  entityType     String
+  entityId       String
+  requirementId  String?
+  uploadedById   String?
+  fileName       String
+  fileType       String
+  storagePath    String
+  createdAt      DateTime @default(now())
+  requirement    Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  uploadedBy     User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([requirementId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String
+  metadata  String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+}

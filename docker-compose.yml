@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: procure360
+      POSTGRES_PASSWORD: procure360
+      POSTGRES_DB: procure360
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  app:
+    build: .
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: "file:./dev.db"
+      JWT_SECRET: "change-me-in-production"
+      PORT: 4000
+      VITE_API_URL: "http://localhost:4000/api"
+      NODE_ENV: "production"
+    ports:
+      - "4000:4000"
+    command: sh -c "npm run db:push && npm run db:seed && npm run start"
+volumes:
+  postgres-data:
