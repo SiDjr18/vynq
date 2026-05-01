@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/store/auth";
 
-const API_URL = import.meta.env.VITE_API_URL || "/api";
+export const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 type ApiOptions = RequestInit & {
   skipAuth?: boolean;
@@ -24,7 +24,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   return response.json() as Promise<T>;
 }
 
-export function queryString(params: Record<string, string | number | undefined>) {
+export function queryString(params: Record<string, string | number | boolean | undefined>) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") search.set(key, String(value));

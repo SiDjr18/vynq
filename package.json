@@ -12,8 +12,10 @@
     "start": "tsx server/index.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate": "npm run db:bootstrap",
     "db:bootstrap": "tsx prisma/bootstrap.ts",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "npm run seed:pharma",
+    "seed:pharma": "tsx scripts/seed-large-pharma-data.ts",
     "db:reset": "prisma db push --force-reset && npm run db:seed",
     "lint": "eslint . --ext ts,tsx --max-warnings 0",
     "typecheck": "tsc -b",
@@ -75,6 +77,6 @@
     "vitest": "^4.1.5"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx scripts/seed-large-pharma-data.ts"
   }
 }

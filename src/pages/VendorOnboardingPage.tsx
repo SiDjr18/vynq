@@ -16,7 +16,7 @@ export function VendorOnboardingPage() {
     email: "",
     vendorCodes: "",
     status: "Unapproved",
-    category: "Raw Materials",
+    category: "Active Pharmaceutical Ingredients / APIs",
     gstNumber: "",
     panNumber: "",
     bankName: "",
@@ -45,7 +45,7 @@ export function VendorOnboardingPage() {
             <CardContent className="grid gap-4 md:grid-cols-2">
               <Field><Label>Company</Label><Input required value={form.company} onChange={(event) => setForm((prev) => ({ ...prev, company: event.target.value }))} /></Field>
               <Field><Label>Vendor Code(s)</Label><Input required value={form.vendorCodes} onChange={(event) => setForm((prev) => ({ ...prev, vendorCodes: event.target.value }))} /></Field>
-              <Field><Label>Category</Label><Select value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}>{["Raw Materials", "Engineering", "Packaging", "Lab Supplies", "IT Services", "Logistics"].map((item) => <option key={item}>{item}</option>)}</Select></Field>
+              <Field><Label>Category</Label><Select value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}>{["Active Pharmaceutical Ingredients / APIs", "API Intermediates", "Excipients", "Solvents", "Reagents & Catalysts", "Primary Packaging Materials", "Secondary Packaging Materials", "Sterile Manufacturing Consumables", "Biologics / Bioprocess Materials", "Quality Control / Lab Materials", "Engineering & Cleanroom Consumables"].map((item) => <option key={item}>{item}</option>)}</Select></Field>
               <Field><Label>Approval Status</Label><Select value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}>{["Unapproved", "Approved", "On Hold"].map((item) => <option key={item}>{item}</option>)}</Select></Field>
             </CardContent>
           </Card>

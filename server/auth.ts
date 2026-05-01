@@ -14,15 +14,15 @@ export type AuthRequest = Request & {
 
 const rolePermissions: Record<string, string[]> = {
   Admin: ["*"],
-  "Procurement Head": ["dashboard", "vendors", "requirements", "prs", "rfqs", "qcs", "pos", "contracts", "catalogue", "reports", "grn:read", "asn:read", "invoice:read", "payment:read", "matching:read"],
-  "Procurement Manager": ["dashboard", "vendors", "requirements", "prs", "rfqs", "qcs", "pos", "contracts", "catalogue", "reports", "grn:read", "asn:read", "invoice:read", "payment:read", "matching:read"],
-  Buyer: ["dashboard", "vendors:read", "requirements", "prs", "rfqs", "catalogue", "reports", "pos:read", "contracts:read"],
-  Vendor: ["dashboard", "requirements:read", "rfqs:read", "pos:read", "contracts:read", "catalogue:read", "asn", "invoice:read", "payment:read"],
+  "Procurement Head": ["dashboard", "vendors", "requirements", "prs", "rfqs", "qcs", "pos", "contracts", "catalogue", "reports", "grn:read", "asn:read", "invoice:read", "payment:read", "matching:read", "materials", "manufacturers", "supply-network", "data-connectors"],
+  "Procurement Manager": ["dashboard", "vendors", "requirements", "prs", "rfqs", "qcs", "pos", "contracts", "catalogue", "reports", "grn:read", "asn:read", "invoice:read", "payment:read", "matching:read", "materials", "manufacturers", "supply-network", "data-connectors"],
+  Buyer: ["dashboard", "vendors:read", "requirements", "prs", "rfqs", "catalogue", "reports", "pos:read", "contracts:read", "materials:read", "manufacturers:read", "supply-network:read"],
+  Vendor: ["dashboard", "requirements:read", "rfqs:read", "pos:read", "contracts:read", "catalogue:read", "asn", "invoice:read", "payment:read", "materials:read", "manufacturers:read", "supply-network:read"],
   "Finance Approver": ["dashboard", "pos:read", "reports", "qcs:read", "invoice", "payment", "matching:read"],
   "Legal Approver": ["dashboard", "contracts", "reports:read"],
   "QCS Approver": ["dashboard", "qcs", "requirements:read", "rfqs:read", "reports"],
   "Warehouse User": ["dashboard", "pos:read", "grn", "asn", "invoice:read", "matching:read"],
-  Viewer: ["dashboard", "vendors:read", "requirements:read", "prs:read", "rfqs:read", "pos:read", "contracts:read", "catalogue:read", "reports:read", "grn:read", "asn:read", "invoice:read", "payment:read", "matching:read"]
+  Viewer: ["dashboard", "vendors:read", "requirements:read", "prs:read", "rfqs:read", "pos:read", "contracts:read", "catalogue:read", "reports:read", "grn:read", "asn:read", "invoice:read", "payment:read", "matching:read", "materials:read", "manufacturers:read", "supply-network:read", "data-connectors:read"]
 };
 
 export function signToken(user: SessionUser) {

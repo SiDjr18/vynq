@@ -4,13 +4,18 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
+import { ManufacturerSuggestionPanel } from "@/components/repository/ManufacturerSuggestionPanel";
+import { MaterialCodeAutocomplete } from "@/components/repository/MaterialCodeAutocomplete";
+import { MaterialDetailCard } from "@/components/repository/MaterialDetailCard";
+import { SupplyHistoryPanel } from "@/components/repository/SupplyHistoryPanel";
+import { VendorRecommendationPanel } from "@/components/repository/VendorRecommendationPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Label } from "@/components/ui/form";
 import { api, queryString } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import type { PageResult, RFQ } from "@/types";
+import type { Material, PageResult, RFQ, VendorRecommendation } from "@/types";
 
 export function RFQPage() {
   const [items, setItems] = useState<RFQ[]>([]);
@@ -82,6 +87,21 @@ export function RFQPage() {
 
 function RFQForm({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({ title: "", quotationDeadline: "", freezeTime: "", negotiationTime: "", itemCode: "", description: "", quantity: "1", uom: "EA", targetPrice: "1000" });
+  const [material, setMaterial] = useState<Partial<Material> | null>(null);
+  const [selectedVendors, setSelectedVendors] = useState<VendorRecommendation[]>([]);
+
+  function selectMaterial(selected: Partial<Material> | null) {
+    setMaterial(selected);
+    if (selected?.materialCode) {
+      setForm((prev) => ({
+        ...prev,
+        itemCode: selected.materialCode || "",
+        description: selected.materialName || "",
+        uom: selected.uom || prev.uom,
+        title: prev.title || `${selected.materialName} RFQ`
+      }));
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -93,7 +113,7 @@ function RFQForm({ onCreated }: { onCreated: () => void }) {
           quotationDeadline: form.quotationDeadline,
           freezeTime: form.freezeTime,
           negotiationTime: form.negotiationTime || undefined,
-          lineItems: [{ itemCode: form.itemCode, description: form.description, quantity: form.quantity, uom: form.uom, targetPrice: form.targetPrice }]
+          lineItems: [{ materialCode: material?.materialCode, itemCode: form.itemCode, description: form.description, quantity: form.quantity, uom: form.uom, targetPrice: form.targetPrice }]
         })
       });
       toast.success("RFQ created");
@@ -112,11 +132,30 @@ function RFQForm({ onCreated }: { onCreated: () => void }) {
           <Field><Label>Quotation Deadline</Label><Input required type="datetime-local" value={form.quotationDeadline} onChange={(event) => setForm((prev) => ({ ...prev, quotationDeadline: event.target.value }))} /></Field>
           <Field><Label>Freeze Time</Label><Input required type="datetime-local" value={form.freezeTime} onChange={(event) => setForm((prev) => ({ ...prev, freezeTime: event.target.value }))} /></Field>
           <Field><Label>Negotiation Schedule</Label><Input type="datetime-local" value={form.negotiationTime} onChange={(event) => setForm((prev) => ({ ...prev, negotiationTime: event.target.value }))} /></Field>
-          <Field><Label>Item Code</Label><Input required value={form.itemCode} onChange={(event) => setForm((prev) => ({ ...prev, itemCode: event.target.value }))} /></Field>
+          <Field className="md:col-span-2"><Label>Material Code</Label><MaterialCodeAutocomplete value={material?.materialCode || form.itemCode} onSelect={selectMaterial} /></Field>
           <Field><Label>Description</Label><Input required value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} /></Field>
           <Field><Label>Quantity</Label><Input required type="number" value={form.quantity} onChange={(event) => setForm((prev) => ({ ...prev, quantity: event.target.value }))} /></Field>
+          <Field><Label>UOM</Label><Input required value={form.uom} onChange={(event) => setForm((prev) => ({ ...prev, uom: event.target.value }))} /></Field>
+          <Field><Label>Target Price</Label><Input type="number" value={form.targetPrice} onChange={(event) => setForm((prev) => ({ ...prev, targetPrice: event.target.value }))} /></Field>
           <div className="flex items-end"><Button><Plus data-icon="inline-start" /> Create RFQ</Button></div>
         </form>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <MaterialDetailCard material={material} />
+          <SupplyHistoryPanel materialCode={material?.materialCode} />
+          <ManufacturerSuggestionPanel materialCode={material?.materialCode} />
+          <VendorRecommendationPanel
+            materialCode={material?.materialCode}
+            onAddVendor={(vendor) => setSelectedVendors((prev) => prev.some((item) => item.vendorCode === vendor.vendorCode) ? prev : [...prev, vendor])}
+          />
+        </div>
+        {selectedVendors.length ? (
+          <div className="mt-4 rounded-md border bg-accent/35 p-3 text-xs">
+            <p className="font-semibold">Selected RFQ vendors</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {selectedVendors.map((vendor) => <Badge key={vendor.vendorCode}>{vendor.vendorCode} · {vendor.vendorName}</Badge>)}
+            </div>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -1,4 +1,4 @@
-import { Activity, ClipboardCheck, FileClock, Handshake, PackageCheck, Users } from "lucide-react";
+import { Activity, ClipboardCheck, Database, Factory, FileClock, Handshake, Network, PackageCheck, Users } from "lucide-react";
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,22 +15,44 @@ type Dashboard = {
 };
 
 const kpiConfig = [
-  ["totalRfqs", "Total RFQs", ClipboardCheck],
-  ["pendingQuotations", "Pending Quotations", FileClock],
-  ["approvedVendors", "Approved Vendors", Users],
-  ["activePos", "Active POs", PackageCheck],
-  ["pendingQcs", "Pending QCS", Activity],
-  ["scheduledNegotiations", "Negotiations Scheduled", Handshake]
+  ["openRfqs", "Open RFQs", ClipboardCheck],
+  ["openRfps", "Open RFPs", FileClock],
+  ["activeVendors", "Active Vendors", Users],
+  ["pendingPos", "Pending POs", PackageCheck],
+  ["qcsApprovalPending", "QCS Pending", Activity],
+  ["pendingContracts", "Pending Contracts", Handshake]
 ] as const;
 
 const colors = ["#087f9a", "#14b8a6", "#f59e0b", "#64748b", "#2563eb", "#ef4444", "#7c3aed"];
 
 export function DashboardPage() {
   const { data, loading } = useApiData<Dashboard>("/dashboard", []);
+  const { data: intelligence } = useApiData<{ kpis: Record<string, number> }>("/material-intelligence", []);
+  const pharmaKpis = [
+    ["totalMaterials", "Pharma Materials", Database],
+    ["totalManufacturers", "Manufacturers", Factory],
+    ["totalVendors", "Pharma Vendors", Users],
+    ["vendorSupplyLinks", "Supply Links", Network],
+    ["highCriticalityMaterials", "Critical Materials", Activity],
+    ["complianceRiskVendors", "Compliance Risk", FileClock]
+  ] as const;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Dashboard" description="Live procurement health, approval queues, vendor activity, and recent system events." />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        {pharmaKpis.map(([key, label, Icon]) => (
+          <Card key={key} className="border-primary/20">
+            <CardHeader className="flex-row items-center justify-between gap-3 pb-2">
+              <CardDescription>{label}</CardDescription>
+              <Icon className="text-primary" data-icon="inline-start" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold">{intelligence?.kpis[key] ?? 0}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         {kpiConfig.map(([key, label, Icon]) => (
           <Card key={key}>

@@ -14,7 +14,7 @@ import { authenticate, permissionsForRoles, requirePermission, signToken, type A
 import { audit } from "./audit";
 import { prisma } from "./prisma";
 import { pagination, toCsv } from "./query";
-import { requirementWizardSchema, validateReminderLimit } from "./validation";
+import { requirementWizardSchema, validateReminderLimit, vendorSupplyMappingSchema } from "./validation";
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -89,6 +89,7 @@ const rfqSchema = z.object({
   freezeTime: z.coerce.date(),
   negotiationTime: z.coerce.date().optional(),
   lineItems: z.array(z.object({
+    materialCode: z.string().regex(/^\d{10}$/).optional(),
     itemCode: z.string(),
     description: z.string(),
     quantity: z.coerce.number().int().positive(),
@@ -107,6 +108,20 @@ const poSchema = z.object({
   deliveryDate: z.coerce.date().optional()
 });
 
+const connectorSchema = z.object({
+  connectorName: z.string().min(2),
+  industry: z.literal("CDMO / Pharma").default("CDMO / Pharma"),
+  baseUrl: z.string().min(1).default("local://mock-api"),
+  endpointPath: z.string().min(1),
+  method: z.enum(["GET", "POST"]).default("GET"),
+  authType: z.enum(["None", "API Key", "Bearer Token", "Basic Auth"]).default("None"),
+  headersJson: z.string().default("{}"),
+  queryParamsJson: z.string().default("{}"),
+  fieldMappingJson: z.string().default("{}"),
+  refreshFrequency: z.string().default("Manual"),
+  activeStatus: z.string().default("Active")
+});
+
 const departments = ["RM", "Strategic Sourcing", "Finance", "QA", "Legal", "Operations", "Warehouse", "R&D", "IT"];
 
 function route(handler: (req: AuthRequest, res: express.Response) => Promise<unknown>) {
@@ -121,6 +136,10 @@ function route(handler: (req: AuthRequest, res: express.Response) => Promise<unk
 
 function nextNumber(prefix: string, base: number) {
   return `${prefix}${String(base).padStart(5, "0")}`;
+}
+
+function daysFromNow(days: number) {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
 function jsonText(value: unknown) {
@@ -230,6 +249,32 @@ async function buildReportRows(report: string): Promise<Array<Record<string, unk
 function routeParam(req: AuthRequest, key: string) {
   const value = req.params[key];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function recommendationScore(row: {
+  preferredRank: number;
+  supplyPrice: number;
+  lastPurchasePrice: number;
+  vendor: {
+    vendorRating: number | null;
+    onTimeDeliveryRate: number | null;
+    qualityScore: number | null;
+    complianceStatus: string | null;
+    preferredVendorFlag: boolean;
+  };
+}) {
+  const priceCompetitiveness = row.lastPurchasePrice > 0 ? Math.max(0, Math.min(100, 100 - ((row.supplyPrice - row.lastPurchasePrice) / row.lastPurchasePrice) * 100)) : 75;
+  return Math.round(
+    20 +
+    20 +
+    ((row.vendor.vendorRating || 3.5) / 5) * 20 +
+    ((row.vendor.onTimeDeliveryRate || 70) / 100) * 15 +
+    ((row.vendor.qualityScore || 70) / 100) * 15 +
+    (priceCompetitiveness / 100) * 10 +
+    (row.vendor.preferredVendorFlag ? 5 : 0) -
+    (row.vendor.complianceStatus === "Non-Compliant" ? 20 : 0) -
+    Math.max(0, row.preferredRank - 1) * 2
+  );
 }
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
@@ -378,6 +423,365 @@ app.get("/api/dashboard", authenticate, requirePermission("dashboard"), route(as
       user: entry.user ? `${entry.user.firstName} ${entry.user.lastName}` : "System"
     }))
   });
+}));
+
+app.get("/api/material-intelligence", authenticate, requirePermission("materials:read"), route(async (_req, res) => {
+  const [
+    totalMaterials, totalManufacturers, totalVendors, materialManufacturerLinks, vendorSupplyLinks,
+    highCriticalityMaterials, singleSourceMaterials, complianceRiskVendors, avgLeadTime, avgVendorRating,
+    materialsByCategory, vendorsByType, vendorCompliance, manufacturerCoverage, leadTimes, priceRows
+  ] = await Promise.all([
+    prisma.material.count({ where: { industry: "CDMO / Pharma" } }),
+    prisma.manufacturer.count({ where: { industry: "CDMO / Pharma" } }),
+    prisma.vendor.count({ where: { industry: "CDMO / Pharma" } }),
+    prisma.materialManufacturer.count(),
+    prisma.vendorSupplyMapping.count(),
+    prisma.material.count({ where: { industry: "CDMO / Pharma", criticality: { in: ["High", "Critical"] } } }),
+    prisma.material.findMany({ select: { materialCode: true, _count: { select: { manufacturers: true } } }, take: 3000 }),
+    prisma.vendor.count({ where: { OR: [{ complianceStatus: "Non-Compliant" }, { blacklistedStatus: true }] } }),
+    prisma.vendorSupplyMapping.aggregate({ _avg: { leadTimeDays: true } }),
+    prisma.vendor.aggregate({ _avg: { vendorRating: true } }),
+    prisma.material.groupBy({ by: ["category"], where: { industry: "CDMO / Pharma" }, _count: true, orderBy: { _count: { category: "desc" } } }),
+    prisma.vendor.groupBy({ by: ["vendorType"], where: { industry: "CDMO / Pharma" }, _count: true, orderBy: { _count: { vendorType: "desc" } } }),
+    prisma.vendor.groupBy({ by: ["complianceStatus"], where: { industry: "CDMO / Pharma" }, _count: true }),
+    prisma.materialManufacturer.groupBy({ by: ["materialCode"], _count: true, orderBy: { materialCode: "asc" }, take: 3000 }),
+    prisma.vendorSupplyMapping.groupBy({ by: ["leadTimeDays"], _count: true, orderBy: { leadTimeDays: "asc" }, take: 20 }),
+    prisma.vendorSupplyMapping.findMany({ select: { supplyPrice: true, lastPurchasePrice: true, material: { select: { category: true } } }, take: 5000 })
+  ]);
+  const priceVariance = new Map<string, { delta: number; count: number }>();
+  priceRows.forEach((row) => {
+    const current = priceVariance.get(row.material.category) || { delta: 0, count: 0 };
+    current.delta += Math.abs(row.supplyPrice - row.lastPurchasePrice);
+    current.count += 1;
+    priceVariance.set(row.material.category, current);
+  });
+  res.json({
+    kpis: {
+      totalMaterials,
+      totalManufacturers,
+      totalVendors,
+      materialManufacturerLinks,
+      vendorSupplyLinks,
+      highCriticalityMaterials,
+      singleSourceRiskMaterials: singleSourceMaterials.filter((material) => material._count.manufacturers <= 1).length,
+      complianceRiskVendors,
+      avgLeadTime: Math.round(avgLeadTime._avg.leadTimeDays || 0),
+      avgVendorRating: Number((avgVendorRating._avg.vendorRating || 0).toFixed(2))
+    },
+    materialsByCategory: materialsByCategory.map((entry) => ({ name: entry.category, value: entry._count })),
+    vendorsByType: vendorsByType.map((entry) => ({ name: entry.vendorType || "Unmapped", value: entry._count })),
+    manufacturerCoverage: manufacturerCoverage.slice(0, 20).map((entry) => ({ materialCode: entry.materialCode, manufacturers: entry._count })),
+    singleSourceRisk: singleSourceMaterials.filter((material) => material._count.manufacturers <= 1).slice(0, 10),
+    topCategories: materialsByCategory.slice(0, 8).map((entry) => ({ category: entry.category, count: entry._count })),
+    vendorCompliance: vendorCompliance.map((entry) => ({ status: entry.complianceStatus || "Unknown", count: entry._count })),
+    leadTimeDistribution: leadTimes.map((entry) => ({ leadTimeDays: entry.leadTimeDays, count: entry._count })),
+    priceVarianceByCategory: Array.from(priceVariance.entries()).map(([category, value]) => ({ category, variance: Math.round(value.delta / Math.max(value.count, 1)) }))
+  });
+}));
+
+app.get("/api/materials/search", authenticate, requirePermission("materials:read"), route(async (req, res) => {
+  const query = String(req.query.query || "").trim();
+  if (query.length < 2) return res.json([]);
+  const items = await prisma.material.findMany({
+    where: {
+      industry: "CDMO / Pharma",
+      OR: [
+        { materialCode: { startsWith: query } },
+        { materialCode: { contains: query } },
+        { materialName: { contains: query } }
+      ]
+    },
+    select: {
+      materialCode: true,
+      materialName: true,
+      category: true,
+      subCategory: true,
+      uom: true,
+      regulatoryCategory: true,
+      storageCondition: true,
+      criticality: true,
+      pharmaGrade: true,
+      specification: true,
+      hsnCode: true,
+      shelfLifeMonths: true
+    },
+    take: 12,
+    orderBy: { materialCode: "asc" }
+  });
+  await audit(req, "MATERIAL_CODE_SEARCHED", "Material", query, { count: items.length });
+  res.json(items);
+}));
+
+app.get("/api/materials", authenticate, requirePermission("materials:read"), route(async (req, res) => {
+  const { page, pageSize, skip, take } = pagination(req.query);
+  const search = String(req.query.search || "").trim();
+  const category = String(req.query.category || "All");
+  const subCategory = String(req.query.subCategory || "All");
+  const criticality = String(req.query.criticality || "All");
+  const regulatoryCategory = String(req.query.regulatoryCategory || "All");
+  const where = {
+    AND: [
+      { industry: "CDMO / Pharma" },
+      search ? { OR: [{ materialCode: { contains: search } }, { materialName: { contains: search } }] } : {},
+      category !== "All" ? { category } : {},
+      subCategory !== "All" ? { subCategory } : {},
+      criticality !== "All" ? { criticality } : {},
+      regulatoryCategory !== "All" ? { regulatoryCategory } : {}
+    ]
+  };
+  const [items, total, categories] = await Promise.all([
+    prisma.material.findMany({ where, skip, take, include: { _count: { select: { manufacturers: true, supplyMappings: true } } }, orderBy: { materialCode: "asc" } }),
+    prisma.material.count({ where }),
+    prisma.material.groupBy({ by: ["category"], where: { industry: "CDMO / Pharma" }, _count: true, orderBy: { category: "asc" } })
+  ]);
+  res.json({ items, total, page, pageSize, facets: { categories: categories.map((entry) => entry.category) } });
+}));
+
+app.get("/api/materials/export", authenticate, requirePermission("materials:read"), route(async (req, res) => {
+  const format = String(req.query.format || "csv");
+  const rows = await prisma.material.findMany({ where: { industry: "CDMO / Pharma" }, orderBy: { materialCode: "asc" }, take: 5000 });
+  const data = rows.map((material) => ({
+    materialCode: material.materialCode,
+    materialName: material.materialName,
+    industry: material.industry,
+    category: material.category,
+    subCategory: material.subCategory,
+    uom: material.uom,
+    regulatoryCategory: material.regulatoryCategory,
+    pharmaGrade: material.pharmaGrade
+  }));
+  if (format === "pdf") return sendPdf(res, "Material Master", data);
+  if (format === "xlsx" || format === "xls") return sendExcelCompatible(res, "material-master", data);
+  res.header("Content-Type", "text/csv");
+  res.attachment("material-master.csv");
+  res.send(toCsv(data));
+}));
+
+app.get("/api/materials/:materialCode", authenticate, requirePermission("materials:read"), route(async (req, res) => {
+  const materialCode = routeParam(req, "materialCode");
+  const material = await prisma.material.findUnique({
+    where: { materialCode },
+    include: { _count: { select: { manufacturers: true, supplyMappings: true } } }
+  });
+  if (!material) return res.status(404).json({ message: "Material code not found. Create new material or select from repository." });
+  await audit(req, "MATERIAL_SELECTED_FROM_REPOSITORY", "Material", material.materialCode);
+  res.json(material);
+}));
+
+app.get("/api/materials/:materialCode/manufacturers", authenticate, requirePermission("manufacturers:read"), route(async (req, res) => {
+  const materialCode = routeParam(req, "materialCode");
+  const links = await prisma.materialManufacturer.findMany({
+    where: { materialCode },
+    include: { manufacturer: true },
+    orderBy: [{ approvalStatus: "asc" }, { leadTimeDays: "asc" }],
+    take: 25
+  });
+  res.json(links.map((link) => ({
+    id: link.id,
+    manufacturerCode: link.manufacturerCode,
+    manufacturerName: link.manufacturer.manufacturerName,
+    qualityCertification: link.manufacturer.qualityCertification,
+    regulatoryCertification: link.manufacturer.regulatoryCertification,
+    complianceStatus: link.manufacturer.complianceStatus,
+    leadTimeDays: link.leadTimeDays,
+    rating: link.manufacturer.rating,
+    approvalStatus: link.approvalStatus,
+    moq: link.moq
+  })));
+}));
+
+app.get("/api/materials/:materialCode/vendors", authenticate, requirePermission("supply-network:read"), route(async (req, res) => {
+  const materialCode = routeParam(req, "materialCode");
+  const compliantOnly = String(req.query.compliantOnly || "true") === "true";
+  const preferredOnly = String(req.query.preferredOnly || "false") === "true";
+  const rows = await prisma.vendorSupplyMapping.findMany({
+    where: {
+      materialCode,
+      vendor: {
+        blacklistedStatus: false,
+        ...(compliantOnly ? { complianceStatus: { not: "Non-Compliant" } } : {}),
+        ...(preferredOnly ? { preferredVendorFlag: true } : {})
+      }
+    },
+    include: { vendor: true, manufacturer: true, material: true },
+    take: 50
+  });
+  const items = rows.map((row) => ({
+    id: row.id,
+    materialCode: row.materialCode,
+    materialName: row.material.materialName,
+    manufacturerCode: row.manufacturerCode,
+    manufacturerName: row.manufacturer.manufacturerName,
+    vendorCode: row.vendorCode,
+    vendorName: row.vendor.vendorName,
+    vendorType: row.vendor.vendorType,
+    supplyPrice: row.supplyPrice,
+    currency: row.currency,
+    moq: row.moq,
+    leadTimeDays: row.leadTimeDays,
+    lastPurchasePrice: row.lastPurchasePrice,
+    vendorRating: row.vendor.vendorRating,
+    qualityScore: row.vendor.qualityScore,
+    onTimeDeliveryRate: row.vendor.onTimeDeliveryRate,
+    complianceStatus: row.vendor.complianceStatus,
+    preferredVendorFlag: row.vendor.preferredVendorFlag,
+    recommendationScore: recommendationScore(row),
+    badges: [
+      row.vendor.preferredVendorFlag ? "Preferred" : null,
+      row.vendor.complianceStatus === "Non-Compliant" ? "Compliance Risk" : null,
+      recommendationScore(row) >= 85 ? "Recommended" : null
+    ].filter(Boolean)
+  })).sort((a, b) => b.recommendationScore - a.recommendationScore || a.leadTimeDays - b.leadTimeDays);
+  await audit(req, "VENDOR_RECOMMENDATION_VIEWED", "Material", materialCode, { count: items.length });
+  res.json(items);
+}));
+
+app.get("/api/vendors/recommendations", authenticate, requirePermission("supply-network:read"), route(async (req, res) => {
+  const input = vendorSupplyMappingSchema.partial().parse({
+    materialCode: req.query.materialCode,
+    manufacturerCode: req.query.manufacturerCode,
+    vendorCode: req.query.vendorCode,
+    supplyPrice: req.query.supplyPrice || 1,
+    moq: req.query.moq || 1,
+    leadTimeDays: req.query.leadTimeDays || 1
+  });
+  const category = String(req.query.category || "");
+  const compliantOnly = String(req.query.compliantOnly || "false") === "true";
+  const preferredOnly = String(req.query.preferredOnly || "false") === "true";
+  const rows = await prisma.vendorSupplyMapping.findMany({
+    where: {
+      ...(input.materialCode ? { materialCode: input.materialCode } : {}),
+      ...(input.manufacturerCode ? { manufacturerCode: input.manufacturerCode } : {}),
+      ...(category ? { material: { category } } : {}),
+      vendor: {
+        blacklistedStatus: false,
+        ...(compliantOnly ? { complianceStatus: { not: "Non-Compliant" } } : {}),
+        ...(preferredOnly ? { preferredVendorFlag: true } : {})
+      }
+    },
+    include: { vendor: true, manufacturer: true, material: true },
+    take: 75
+  });
+  res.json(rows.map((row) => ({ ...row, recommendationScore: recommendationScore(row) })).sort((a, b) => b.recommendationScore - a.recommendationScore));
+}));
+
+app.get("/api/materials/:materialCode/supply-history", authenticate, requirePermission("supply-network:read"), route(async (req, res) => {
+  const materialCode = routeParam(req, "materialCode");
+  const rows = await prisma.vendorSupplyMapping.findMany({
+    where: { materialCode },
+    include: { vendor: true, manufacturer: true },
+    orderBy: { lastTransactionDate: "desc" },
+    take: 40
+  });
+  res.json({
+    materialCode,
+    lastQuotedPrice: rows[0]?.lastQuotedPrice || null,
+    lastPurchasePrice: rows[0]?.lastPurchasePrice || null,
+    history: rows.map((row) => ({
+      vendorCode: row.vendorCode,
+      vendorName: row.vendor.vendorName,
+      manufacturerCode: row.manufacturerCode,
+      manufacturerName: row.manufacturer.manufacturerName,
+      moq: row.moq,
+      leadTimeDays: row.leadTimeDays,
+      lastQuotedPrice: row.lastQuotedPrice,
+      lastPurchasePrice: row.lastPurchasePrice,
+      lastTransactionDate: row.lastTransactionDate,
+      preferredRank: row.preferredRank
+    }))
+  });
+}));
+
+app.get("/api/manufacturers", authenticate, requirePermission("manufacturers:read"), route(async (req, res) => {
+  const { page, pageSize, skip, take } = pagination(req.query);
+  const search = String(req.query.search || "").trim();
+  const manufacturerType = String(req.query.manufacturerType || "All");
+  const country = String(req.query.country || "All");
+  const complianceStatus = String(req.query.complianceStatus || "All");
+  const where = {
+    AND: [
+      { industry: "CDMO / Pharma" },
+      search ? { OR: [{ manufacturerCode: { contains: search } }, { manufacturerName: { contains: search } }] } : {},
+      manufacturerType !== "All" ? { manufacturerType } : {},
+      country !== "All" ? { country } : {},
+      complianceStatus !== "All" ? { complianceStatus } : {}
+    ]
+  };
+  const [items, total] = await Promise.all([
+    prisma.manufacturer.findMany({ where, skip, take, include: { _count: { select: { materials: true, supplyMappings: true } } }, orderBy: { manufacturerCode: "asc" } }),
+    prisma.manufacturer.count({ where })
+  ]);
+  res.json({ items, total, page, pageSize });
+}));
+
+app.get("/api/vendor-supply-network", authenticate, requirePermission("supply-network:read"), route(async (req, res) => {
+  const { page, pageSize, skip, take } = pagination(req.query);
+  const search = String(req.query.search || "").trim();
+  const category = String(req.query.category || "All");
+  const complianceStatus = String(req.query.complianceStatus || "All");
+  const vendorType = String(req.query.vendorType || "All");
+  const where = {
+    AND: [
+      search ? { OR: [{ materialCode: { contains: search } }, { manufacturerCode: { contains: search } }, { vendorCode: { contains: search } }] } : {},
+      category !== "All" ? { material: { category } } : {},
+      complianceStatus !== "All" ? { vendor: { complianceStatus } } : {},
+      vendorType !== "All" ? { vendor: { vendorType } } : {}
+    ]
+  };
+  const [items, total] = await Promise.all([
+    prisma.vendorSupplyMapping.findMany({ where, skip, take, include: { material: true, manufacturer: true, vendor: true }, orderBy: [{ materialCode: "asc" }, { preferredRank: "asc" }] }),
+    prisma.vendorSupplyMapping.count({ where })
+  ]);
+  res.json({
+    items: items.map((row) => ({ ...row, recommendationScore: recommendationScore(row) })),
+    total,
+    page,
+    pageSize
+  });
+}));
+
+app.get("/api/data-connectors", authenticate, requirePermission("data-connectors:read"), route(async (req, res) => {
+  const { page, pageSize, skip, take } = pagination(req.query);
+  const [items, total] = await Promise.all([
+    prisma.dataConnector.findMany({ skip, take, include: { logs: { orderBy: { startedAt: "desc" }, take: 1 } }, orderBy: { createdAt: "desc" } }),
+    prisma.dataConnector.count()
+  ]);
+  res.json({ items, total, page, pageSize });
+}));
+
+app.post("/api/data-connectors", authenticate, requirePermission("data-connectors"), route(async (req, res) => {
+  const input = connectorSchema.parse(req.body);
+  const connector = await prisma.dataConnector.create({ data: input });
+  await audit(req, "DATA_CONNECTOR_CREATED", "DataConnector", connector.id);
+  res.status(201).json(connector);
+}));
+
+app.get("/api/data-connectors/logs", authenticate, requirePermission("data-connectors:read"), route(async (req, res) => {
+  const { page, pageSize, skip, take } = pagination(req.query);
+  const [items, total] = await Promise.all([
+    prisma.dataIngestionLog.findMany({ skip, take, include: { connector: true, errors: true }, orderBy: { startedAt: "desc" } }),
+    prisma.dataIngestionLog.count()
+  ]);
+  res.json({ items, total, page, pageSize });
+}));
+
+app.post("/api/data-connectors/:id/sync", authenticate, requirePermission("data-connectors"), route(async (req, res) => {
+  const id = routeParam(req, "id");
+  const connector = await prisma.dataConnector.findUnique({ where: { id } });
+  if (!connector) return res.status(404).json({ message: "Connector not found" });
+  const log = await prisma.dataIngestionLog.create({
+    data: {
+      connectorId: connector.id,
+      completedAt: new Date(),
+      totalRecords: 25,
+      importedRecords: 25,
+      failedRecords: 0,
+      status: "Success",
+      errorSummary: null
+    }
+  });
+  await audit(req, "MOCK_CONNECTOR_SYNC_COMPLETED", "DataConnector", connector.id, { importedRecords: log.importedRecords });
+  res.json({ message: "Mock sync completed successfully", log });
 }));
 
 app.get("/api/vendors", authenticate, requirePermission("vendors:read"), route(async (req, res) => {
@@ -700,6 +1104,125 @@ app.get("/api/vendors/suggest", authenticate, requirePermission("vendors:read"),
     };
   }).sort((a, b) => b.score - a.score);
   res.json({ items, eligibilityWarning: items.length ? null : "Vendors are not assigned in this category" });
+}));
+
+app.post("/api/requirements/:id/clone", authenticate, requirePermission("requirements"), route(async (req, res) => {
+  const id = routeParam(req, "id");
+  const options = z.object({
+    cloneVendors: z.boolean().default(false),
+    cloneTerms: z.boolean().default(true),
+    cloneTemplateQuestions: z.boolean().default(true),
+    cloneAttachments: z.boolean().default(false),
+    cloneOnlyMaterialLineItems: z.boolean().default(false)
+  }).parse(req.body || {});
+  const source = await prisma.requirement.findUnique({
+    where: { id },
+    include: { items: true, templateQuestions: true, vendors: true, attachments: true }
+  });
+  if (!source) return res.status(404).json({ message: "Source requirement not found" });
+  const count = await prisma.requirement.count({ where: { rfqNumber: { startsWith: "REQ-DRAFT-" } } });
+  const draftNumber = `REQ-DRAFT-${String(count + 1).padStart(4, "0")}`;
+  const cloned = await prisma.requirement.create({
+    data: {
+      rfqNumber: draftNumber,
+      rfqType: source.rfqType,
+      title: `Clone of ${source.title}`,
+      postedById: req.user!.id,
+      postedOn: new Date(),
+      freezeTime: daysFromNow(7),
+      negotiationTime: source.negotiationTime ? daysFromNow(10) : null,
+      status: "Draft",
+      department: source.department,
+      urgency: source.urgency,
+      description: source.description,
+      internalNotes: source.internalNotes,
+      deliveryTerms: options.cloneTerms ? source.deliveryTerms : null,
+      paymentTerms: options.cloneTerms ? source.paymentTerms : null,
+      incoterms: options.cloneTerms ? source.incoterms : null,
+      contactDetails: options.cloneTerms ? source.contactDetails : null,
+      transactionConfig: source.transactionConfig,
+      projectName: source.projectName,
+      clientName: source.clientName,
+      quotationStatus: "0 / 0",
+      quotationCount: 0,
+      invitedVendors: options.cloneVendors ? source.vendors.length : 0,
+      items: {
+        create: source.items.map((item) => ({
+          itemNo: item.itemNo,
+          materialCode: item.materialCode,
+          materialName: item.materialName,
+          productCode: item.productCode,
+          productName: item.productName,
+          mpnNumber: item.mpnNumber,
+          quantity: item.quantity,
+          uom: item.uom,
+          makeModel: item.makeModel,
+          hsnCode: item.hsnCode,
+          deliveryAddress: options.cloneOnlyMaterialLineItems ? null : item.deliveryAddress,
+          description: item.description,
+          freightCharges: options.cloneOnlyMaterialLineItems ? 0 : item.freightCharges,
+          insuranceCharges: options.cloneOnlyMaterialLineItems ? 0 : item.insuranceCharges,
+          remarks: "Cloned from repository-driven requirement",
+          attachmentName: null
+        }))
+      },
+      ...(options.cloneTemplateQuestions ? {
+        templateQuestions: {
+          create: source.templateQuestions.map((question) => ({
+            name: question.name,
+            description: question.description,
+            specification: question.specification,
+            isTechnical: question.isTechnical,
+            isMandatory: question.isMandatory,
+            vendorResponseType: question.vendorResponseType,
+            weightage: question.weightage
+          }))
+        }
+      } : {}),
+      ...(options.cloneVendors ? {
+        vendors: {
+          create: source.vendors.map((vendor) => ({
+            vendorId: vendor.vendorId,
+            status: "Selected for Draft",
+            categoryMatch: vendor.categoryMatch,
+            score: vendor.score,
+            warnings: vendor.warnings,
+            invitedAt: null
+          }))
+        }
+      } : {}),
+      ...(options.cloneAttachments ? {
+        attachments: {
+          create: source.attachments.map((attachment) => ({
+            entityType: "Requirement",
+            entityId: draftNumber,
+            uploadedById: req.user!.id,
+            fileName: `clone-${attachment.fileName}`,
+            fileType: attachment.fileType,
+            storagePath: attachment.storagePath
+          }))
+        }
+      } : {})
+    }
+  });
+  await prisma.requirementDraft.create({
+    data: {
+      ownerId: req.user!.id,
+      requirementId: cloned.id,
+      draftKey: cloned.rfqNumber,
+      payload: JSON.stringify({ clonedFrom: source.id, options }),
+      currentStep: 1,
+      status: "Draft"
+    }
+  });
+  await audit(req, "REQUIREMENT_CLONED", "Requirement", cloned.id, { sourceRequirementId: source.id, options });
+  res.status(201).json({
+    newRequirementId: cloned.id,
+    draftNumber: cloned.rfqNumber,
+    status: "Draft",
+    redirectTo: `/requirements/${cloned.id}/edit`,
+    message: "Requirement cloned successfully"
+  });
 }));
 
 app.patch("/api/requirements/:id/status", authenticate, requirePermission("requirements"), route(async (req, res) => {

@@ -15,6 +15,7 @@ export type PageResult<T> = {
   page: number;
   pageSize: number;
   filters?: Record<string, unknown>;
+  facets?: Record<string, string[]>;
 };
 
 export type Vendor = {
@@ -32,6 +33,71 @@ export type Vendor = {
   accountNumber?: string;
   ifscCode?: string;
   riskScore: number;
+  vendorCode?: string;
+  vendorType?: string;
+  complianceStatus?: string;
+  vendorRating?: number;
+  responseRate?: number;
+  onTimeDeliveryRate?: number;
+  qualityScore?: number;
+  preferredVendorFlag?: boolean;
+};
+
+export type Material = {
+  id: string;
+  materialCode: string;
+  materialName: string;
+  description: string;
+  industry: string;
+  category: string;
+  subCategory: string;
+  uom: string;
+  materialType: string;
+  specification: string;
+  hsnCode: string;
+  criticality: string;
+  storageCondition: string;
+  regulatoryCategory: string;
+  pharmaGrade: string;
+  shelfLifeMonths: number;
+  activeStatus: string;
+  _count?: { manufacturers: number; supplyMappings: number };
+};
+
+export type ManufacturerSuggestion = {
+  id: string;
+  manufacturerCode: string;
+  manufacturerName: string;
+  qualityCertification: string;
+  regulatoryCertification: string;
+  complianceStatus: string;
+  leadTimeDays: number;
+  rating: number;
+  approvalStatus: string;
+  moq: number;
+};
+
+export type VendorRecommendation = {
+  id: string;
+  materialCode: string;
+  materialName: string;
+  manufacturerCode: string;
+  manufacturerName: string;
+  vendorCode: string;
+  vendorName: string;
+  vendorType?: string;
+  supplyPrice: number;
+  currency: string;
+  moq: number;
+  leadTimeDays: number;
+  lastPurchasePrice: number;
+  vendorRating?: number;
+  qualityScore?: number;
+  onTimeDeliveryRate?: number;
+  complianceStatus?: string;
+  preferredVendorFlag: boolean;
+  recommendationScore: number;
+  badges: string[];
 };
 
 export type Requirement = {

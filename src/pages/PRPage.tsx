@@ -4,13 +4,15 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
+import { MaterialCodeAutocomplete } from "@/components/repository/MaterialCodeAutocomplete";
+import { MaterialDetailCard } from "@/components/repository/MaterialDetailCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Label, Select } from "@/components/ui/form";
 import { api, queryString } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { PageResult, PR } from "@/types";
+import type { Material, PageResult, PR } from "@/types";
 
 export function PRPage() {
   const [items, setItems] = useState<PR[]>([]);
@@ -67,6 +69,14 @@ export function PRPage() {
 
 function PRForm({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({ title: "", department: "R&D", budget: "100000", item: "", quantity: "10", urgency: "Medium", requiredDate: "" });
+  const [material, setMaterial] = useState<Partial<Material> | null>(null);
+
+  function selectMaterial(selected: Partial<Material> | null) {
+    setMaterial(selected);
+    if (selected?.materialCode) {
+      setForm((prev) => ({ ...prev, item: selected.materialName || "", title: prev.title || `${selected.materialName} purchase requisition` }));
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -86,6 +96,7 @@ function PRForm({ onCreated }: { onCreated: () => void }) {
       <CardContent>
         <form className="grid gap-4 md:grid-cols-4" onSubmit={submit}>
           <Field className="md:col-span-2"><Label>Title</Label><Input required value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} /></Field>
+          <Field className="md:col-span-2"><Label>Material Code</Label><MaterialCodeAutocomplete value={material?.materialCode || ""} onSelect={selectMaterial} /></Field>
           <Field><Label>Department</Label><Select value={form.department} onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))}>{["R&D", "Manufacturing", "Quality", "Engineering", "Facilities", "IT"].map((item) => <option key={item}>{item}</option>)}</Select></Field>
           <Field><Label>Budget</Label><Input required type="number" value={form.budget} onChange={(event) => setForm((prev) => ({ ...prev, budget: event.target.value }))} /></Field>
           <Field><Label>Item</Label><Input required value={form.item} onChange={(event) => setForm((prev) => ({ ...prev, item: event.target.value }))} /></Field>
@@ -94,6 +105,7 @@ function PRForm({ onCreated }: { onCreated: () => void }) {
           <Field><Label>Required Date</Label><Input required type="date" value={form.requiredDate} onChange={(event) => setForm((prev) => ({ ...prev, requiredDate: event.target.value }))} /></Field>
           <div className="flex items-end"><Button><Plus data-icon="inline-start" /> Create PR</Button></div>
         </form>
+        <div className="mt-4"><MaterialDetailCard material={material} /></div>
       </CardContent>
     </Card>
   );

@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const requirementItemSchema = z.object({
   itemNo: z.coerce.number().int().positive(),
+  materialCode: z.string().regex(/^\d{10}$/, "Material code must be a 10-digit string").optional(),
+  materialName: z.string().optional(),
   productCode: z.string().min(1, "Product Code is required"),
   productName: z.string().min(1, "Product Name is required"),
   mpnNumber: z.string().optional(),
@@ -114,3 +116,70 @@ export function validateReminderLimit(noOfReminders: number, roles: string[]) {
     }]);
   }
 }
+
+const pharmaIndustry = z.literal("CDMO / Pharma");
+const sixDigitCode = z.string().regex(/^\d{6}$/, "Code must be a 6-digit string");
+const tenDigitCode = z.string().regex(/^\d{10}$/, "Material code must be a 10-digit string");
+
+export const materialSchema = z.object({
+  materialCode: tenDigitCode,
+  materialName: z.string().min(2),
+  description: z.string().min(2),
+  industry: pharmaIndustry,
+  category: z.string().min(1),
+  subCategory: z.string().min(1),
+  uom: z.string().min(1),
+  materialType: z.string().min(1),
+  specification: z.string().min(1),
+  hsnCode: z.string().min(4),
+  criticality: z.string().min(1),
+  storageCondition: z.string().min(1),
+  regulatoryCategory: z.string().min(1),
+  pharmaGrade: z.string().min(1),
+  shelfLifeMonths: z.coerce.number().int().positive(),
+  activeStatus: z.string().default("Active")
+});
+
+export const manufacturerSchema = z.object({
+  manufacturerCode: sixDigitCode,
+  manufacturerName: z.string().min(2),
+  manufacturerShortName: z.string().min(1),
+  manufacturerType: z.string().refine((value) => value.includes("Manufacturer"), "Manufacturer type must be pharma/CDMO related"),
+  industry: pharmaIndustry,
+  addressLine1: z.string().min(1),
+  addressLine2: z.string().optional(),
+  city: z.string().min(1),
+  state: z.string().min(1),
+  country: z.string().min(1),
+  pincode: z.string().min(4),
+  contactPerson: z.string().min(1),
+  contactEmail: z.string().email(),
+  contactPhone: z.string().min(6),
+  qualityCertification: z.string().min(1),
+  regulatoryCertification: z.string().min(1),
+  complianceStatus: z.string().min(1),
+  manufacturingCapacity: z.string().min(1),
+  leadTimeDays: z.coerce.number().int().positive(),
+  rating: z.coerce.number().min(0).max(5),
+  activeStatus: z.string().default("Active")
+});
+
+export const pharmaVendorSchema = z.object({
+  vendorCode: sixDigitCode,
+  vendorName: z.string().min(2),
+  vendorType: z.string().min(2),
+  industry: pharmaIndustry,
+  addressLine1: z.string().min(1),
+  city: z.string().min(1),
+  country: z.string().min(1),
+  complianceStatus: z.string().min(1)
+});
+
+export const vendorSupplyMappingSchema = z.object({
+  materialCode: tenDigitCode,
+  manufacturerCode: sixDigitCode,
+  vendorCode: sixDigitCode,
+  supplyPrice: z.coerce.number().positive(),
+  moq: z.coerce.number().int().positive(),
+  leadTimeDays: z.coerce.number().int().positive()
+});

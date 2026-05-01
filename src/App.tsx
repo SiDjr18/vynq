@@ -8,7 +8,11 @@ const CataloguePage = lazy(() => import("@/pages/CataloguePage").then((module) =
 const CommunicationsPage = lazy(() => import("@/pages/CommunicationsPage").then((module) => ({ default: module.CommunicationsPage })));
 const ContractsPage = lazy(() => import("@/pages/ContractsPage").then((module) => ({ default: module.ContractsPage })));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+const DataConnectorsPage = lazy(() => import("@/pages/DataConnectorsPage").then((module) => ({ default: module.DataConnectorsPage })));
 const LoginPage = lazy(() => import("@/pages/LoginPage").then((module) => ({ default: module.LoginPage })));
+const ManufacturersPage = lazy(() => import("@/pages/ManufacturersPage").then((module) => ({ default: module.ManufacturersPage })));
+const MaterialIntelligencePage = lazy(() => import("@/pages/MaterialIntelligencePage").then((module) => ({ default: module.MaterialIntelligencePage })));
+const MaterialsPage = lazy(() => import("@/pages/MaterialsPage").then((module) => ({ default: module.MaterialsPage })));
 const PasswordPage = lazy(() => import("@/pages/PasswordPage").then((module) => ({ default: module.PasswordPage })));
 const POPage = lazy(() => import("@/pages/POPage").then((module) => ({ default: module.POPage })));
 const PRPage = lazy(() => import("@/pages/PRPage").then((module) => ({ default: module.PRPage })));
@@ -19,6 +23,7 @@ const RequirementsPage = lazy(() => import("@/pages/RequirementsPage").then((mod
 const RFQPage = lazy(() => import("@/pages/RFQPage").then((module) => ({ default: module.RFQPage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const VendorOnboardingPage = lazy(() => import("@/pages/VendorOnboardingPage").then((module) => ({ default: module.VendorOnboardingPage })));
+const VendorSupplyNetworkPage = lazy(() => import("@/pages/VendorSupplyNetworkPage").then((module) => ({ default: module.VendorSupplyNetworkPage })));
 const VendorsPage = lazy(() => import("@/pages/VendorsPage").then((module) => ({ default: module.VendorsPage })));
 
 function RouteFallback() {
@@ -40,9 +45,15 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/material-intelligence" element={<MaterialIntelligencePage />} />
+            <Route path="/materials" element={<MaterialsPage />} />
+            <Route path="/manufacturers" element={<ManufacturersPage />} />
+            <Route path="/vendor-supply-network" element={<VendorSupplyNetworkPage />} />
+            <Route path="/data-connectors" element={<DataConnectorsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/requirements" element={<RequirementsPage />} />
             <Route path="/requirements/new" element={<RequirementsPage createMode />} />
+            <Route path="/requirements/:id/edit" element={<RequirementsPage createMode />} />
             <Route path="/vendors" element={<VendorsPage />} />
             <Route path="/vendors/new" element={<VendorOnboardingPage />} />
             <Route path="/prs" element={<PRPage />} />

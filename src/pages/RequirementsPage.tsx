@@ -4,6 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
+import { CloneRequirementModal } from "@/components/repository/CloneRequirementModal";
+import { MaterialCodeAutocomplete } from "@/components/repository/MaterialCodeAutocomplete";
+import { MaterialDetailCard } from "@/components/repository/MaterialDetailCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +14,7 @@ import { Field, Input, Label, Select, Textarea } from "@/components/ui/form";
 import { useDebounce } from "@/hooks/useDebounce";
 import { api, downloadCsv, queryString } from "@/lib/api";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import type { PageResult, Requirement } from "@/types";
+import type { Material, PageResult, Requirement } from "@/types";
 
 const statuses = [
   "All Status",
@@ -86,10 +89,11 @@ export function RequirementsPage({ createMode = false }: { createMode?: boolean 
     {
       id: "actions",
       header: "Actions",
-      cell: () => (
+      cell: ({ row }) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" title="View"><Eye data-icon="inline-start" /></Button>
           <Button variant="ghost" size="icon" title="Edit"><Edit data-icon="inline-start" /></Button>
+          <CloneRequirementModal requirementId={row.original.id} onCloned={load} />
           <Button variant="ghost" size="icon" title="Comments"><MessageCircle data-icon="inline-start" /></Button>
         </div>
       )
@@ -181,6 +185,12 @@ export function RequirementsPage({ createMode = false }: { createMode?: boolean 
 
 function RequirementForm({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({ title: "", rfqType: "RFQ", projectName: "", clientName: "", prNumber: "", status: "Saved As Draft" });
+  const [material, setMaterial] = useState<Partial<Material> | null>(null);
+
+  function selectMaterial(selected: Partial<Material> | null) {
+    setMaterial(selected);
+    if (selected?.materialCode) setForm((prev) => ({ ...prev, title: prev.title || `${selected.materialName} requirement` }));
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -204,6 +214,10 @@ function RequirementForm({ onCreated }: { onCreated: () => void }) {
           <Field className="md:col-span-2">
             <Label>Title</Label>
             <Input required value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} />
+          </Field>
+          <Field>
+            <Label>Material Code</Label>
+            <MaterialCodeAutocomplete value={material?.materialCode || ""} onSelect={selectMaterial} />
           </Field>
           <Field>
             <Label>RFQ Type</Label>
@@ -233,6 +247,7 @@ function RequirementForm({ onCreated }: { onCreated: () => void }) {
             <Button><Plus data-icon="inline-start" /> Create Requirement</Button>
           </div>
         </form>
+        <div className="mt-4"><MaterialDetailCard material={material} /></div>
       </CardContent>
     </Card>
   );
