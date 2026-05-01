@@ -117,7 +117,7 @@ async function main() {
   }
 
   const userInputs = [
-    ["admin@demo.com", "Aarav", "Admin", "Admin", "Admin@123"],
+    ["admin@demo.com", "Sidhartha", "Admin", "Admin", "Admin@123"],
     ["head@demo.com", "Meera", "Head", "Procurement Head", "Head@123"],
     ["manager@demo.com", "Nisha", "Manager", "Procurement Manager", "Manager@123"],
     ["buyer@demo.com", "Rohan", "Buyer", "Buyer", "Buyer@123"],
@@ -137,7 +137,7 @@ async function main() {
         firstName,
         lastName,
         mobilePhone: "9000000000",
-        companyName: "Procure360 Demo Enterprise",
+        companyName: "VYNQ Demo Enterprise",
         roles: { create: { roleId: roleMap.get(role)! } }
       }
     }));

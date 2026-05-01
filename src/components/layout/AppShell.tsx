@@ -61,8 +61,8 @@ export function AppShell() {
             <Building2 data-icon="inline-start" />
           </div>
           <div>
-            <p className="text-sm font-semibold">Procure360</p>
-            <p className="text-xs text-white/70">Vendor Portal</p>
+            <p className="text-sm font-semibold">VYNQ</p>
+            <p className="text-xs text-white/70">Procurement Portal</p>
           </div>
         </div>
         <nav className="flex flex-col gap-1 p-3">
@@ -89,7 +89,7 @@ export function AppShell() {
         <header className="sticky top-0 z-20 border-b bg-card/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between gap-4 px-4 lg:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className="hidden text-lg font-semibold text-primary md:block">Procure360</div>
+              <div className="hidden text-lg font-semibold text-primary md:block">VYNQ</div>
               <div className="flex h-9 min-w-0 flex-1 max-w-xl items-center gap-2 rounded-md border bg-background px-3 text-sm text-muted-foreground">
                 <HelpCircle data-icon="inline-start" />
                 <span className="hidden sm:inline">Click here to get help</span>

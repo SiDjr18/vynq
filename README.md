@@ -1,6 +1,6 @@
-# Procure360 Vendor Portal
+# VYNQ
 
-Procure360 Vendor Portal is a free, local-first enterprise procurement demo application for vendor onboarding, RFQ/RFP creation, PR management, PO management, contract tracking, GRN/ASN workflows, invoice and payment tracking, reports, audit logs, and role-based access control.
+VYNQ is a free, local-first enterprise procurement demo application for vendor onboarding, RFQ/RFP creation, PR management, PO management, contract tracking, GRN/ASN workflows, invoice and payment tracking, reports, audit logs, and role-based access control.
 
 The project is built with dummy data only and is safe to share as a portfolio or internal demo. It does not use paid APIs, paid hosting, paid databases, paid authentication providers, paid email/SMS services, paid analytics, paid UI kits, paid fonts, paid icons, paid templates, or paid file storage.
 

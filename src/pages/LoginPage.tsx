@@ -44,8 +44,8 @@ export function LoginPage() {
               <Building2 data-icon="inline-start" />
             </div>
             <div>
-              <p className="text-lg font-semibold">Procure360</p>
-              <p className="text-sm text-white/70">Enterprise Vendor Portal</p>
+              <p className="text-lg font-semibold">VYNQ</p>
+              <p className="text-sm text-white/70">Enterprise Procurement Portal</p>
             </div>
           </div>
           <div>

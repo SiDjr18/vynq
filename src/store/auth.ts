@@ -9,18 +9,18 @@ type AuthState = {
   can: (permission: string) => boolean;
 };
 
-const stored = localStorage.getItem("procure360-session");
+const stored = localStorage.getItem("vynq-session");
 const initial = stored ? JSON.parse(stored) as Pick<AuthState, "token" | "user"> : { token: null, user: null };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   token: initial.token,
   user: initial.user,
   setSession: (token, user) => {
-    localStorage.setItem("procure360-session", JSON.stringify({ token, user }));
+    localStorage.setItem("vynq-session", JSON.stringify({ token, user }));
     set({ token, user });
   },
   logout: () => {
-    localStorage.removeItem("procure360-session");
+    localStorage.removeItem("vynq-session");
     set({ token: null, user: null });
   },
   can: (permission) => {

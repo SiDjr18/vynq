@@ -1009,5 +1009,5 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 });
 
 app.listen(port, () => {
-  console.log(`Procure360 API listening on http://localhost:${port}`);
+  console.log(`VYNQ API listening on http://localhost:${port}`);
 });

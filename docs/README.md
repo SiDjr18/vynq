@@ -1,4 +1,4 @@
-# Procure360 Vendor Portal Setup
+# VYNQ Setup
 
 This GitHub Pages folder is a static landing page only. The full backend-enabled procurement portal runs locally for free.
 

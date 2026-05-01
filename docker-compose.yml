@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: procure360
-      POSTGRES_PASSWORD: procure360
-      POSTGRES_DB: procure360
+      POSTGRES_USER: vynq
+      POSTGRES_PASSWORD: vynq
+      POSTGRES_DB: vynq
     ports:
       - "5432:5432"
     volumes:
