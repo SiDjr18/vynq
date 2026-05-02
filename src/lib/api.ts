@@ -1,6 +1,30 @@
 import { useAuthStore } from "@/store/auth";
 
-export const API_URL = import.meta.env.VITE_API_URL || "/api";
+function resolveApiUrl() {
+  const configuredUrl = import.meta.env.VITE_API_URL || "/api";
+
+  if (typeof window === "undefined" || configuredUrl.startsWith("/")) {
+    return configuredUrl;
+  }
+
+  const appHost = window.location.hostname;
+  const isLocalApiUrl = configuredUrl.includes("localhost") || configuredUrl.includes("127.0.0.1");
+  const isRemoteBrowser = appHost !== "localhost" && appHost !== "127.0.0.1";
+
+  if (isLocalApiUrl && isRemoteBrowser) {
+    try {
+      const url = new URL(configuredUrl);
+      url.hostname = appHost;
+      return url.toString().replace(/\/$/, "");
+    } catch {
+      return configuredUrl;
+    }
+  }
+
+  return configuredUrl;
+}
+
+export const API_URL = resolveApiUrl();
 
 type ApiOptions = RequestInit & {
   skipAuth?: boolean;
