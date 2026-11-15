@@ -25,10 +25,21 @@ const rolePermissions: Record<string, string[]> = {
   Viewer: ["dashboard", "vendors:read", "requirements:read", "prs:read", "rfqs:read", "pos:read", "contracts:read", "catalogue:read", "reports:read", "grn:read", "asn:read", "invoice:read", "payment:read", "matching:read", "materials:read", "manufacturers:read", "supply-network:read", "data-connectors:read"]
 };
 
-export function signToken(user: SessionUser) {
+function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("JWT_SECRET is required");
-  return jwt.sign(user, secret, { expiresIn: "8h" });
+  if (!secret || secret.trim().length < 32 || /^(?:replace|change)[-_ ]/i.test(secret.trim())) {
+    throw new Error("Set JWT_SECRET to a unique random value of at least 32 characters.");
+  }
+  return secret;
+}
+
+function canUseAccount(user: Pick<SessionUser, "email">) {
+  return process.env.VYNQ_ALLOW_DEMO_ACCOUNTS === "true" || !user.email.toLowerCase().endsWith("@demo.com");
+}
+
+export function signToken(user: SessionUser) {
+  if (!canUseAccount(user)) throw Object.assign(new Error("Demo accounts are disabled"), { status: 403 });
+  return jwt.sign(user, getJwtSecret(), { algorithm: "HS256", expiresIn: "8h" });
 }
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
@@ -37,12 +48,12 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
   if (!token) return res.status(401).json({ message: "Authentication required" });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as SessionUser;
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] }) as SessionUser;
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       include: { roles: { include: { role: true } } }
     });
-    if (!user?.isActive) return res.status(401).json({ message: "User is inactive" });
+    if (!user?.isActive || !canUseAccount(user)) return res.status(401).json({ message: "User is inactive" });
     req.user = {
       id: user.id,
       email: user.email,
