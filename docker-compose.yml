@@ -1,26 +1,12 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: vynq
-      POSTGRES_PASSWORD: vynq
-      POSTGRES_DB: vynq
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
   app:
     build: .
-    depends_on:
-      - postgres
     environment:
       DATABASE_URL: "file:./dev.db"
-      JWT_SECRET: "change-me-in-production"
+      JWT_SECRET: "${JWT_SECRET:?Set a unique JWT_SECRET in .env before starting VYNQ}"
+      VYNQ_ALLOW_DEMO_ACCOUNTS: "${VYNQ_ALLOW_DEMO_ACCOUNTS:-false}"
       PORT: 4000
-      VITE_API_URL: "http://localhost:4000/api"
       NODE_ENV: "production"
     ports:
-      - "4000:4000"
-    command: sh -c "npm run db:push && npm run db:seed && npm run start"
-volumes:
-  postgres-data:
+      - "127.0.0.1:4000:4000"
+    command: sh -c "npm run db:push && npm run start"
