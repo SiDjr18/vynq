@@ -132,3 +132,7 @@ GitHub Pages hosts only this static demo landing page. The full backend-enabled 
 - File uploads use local placeholder storage only.
 - SQLite is the default local demo database; PostgreSQL is available only through local Docker setup.
 - This is a demo application and should be security-reviewed before production use.
+
+## Security settings for local use
+
+Set `JWT_SECRET` to a unique random value of at least 32 characters in `.env`. Previously documented placeholders no longer work. Docker publishes the app on `127.0.0.1` only and no longer starts the unused PostgreSQL service or seeds the database automatically. For disposable local demo databases only, set `VYNQ_ALLOW_DEMO_ACCOUNTS=true` before running the demo seed. Seeding replaces existing rows. Keep the flag off anywhere that holds real data or is reachable by other users.
